@@ -1,0 +1,5 @@
+ProductId,ProductName,Type,TotalItems
+1,table,A,10
+2,chair,A,15
+3,clock,B,20
+4,AC,"C,A",5
