@@ -1,0 +1,22 @@
+
+
+.card {
+    margin-top: 5%;
+    border-radius: 10px;
+}
+
+.alert {
+    border-radius: 5px;
+}
+
+.btn-block {
+    width: 100%;
+}
+
+.form-group label {
+    font-weight: bold;
+}
+
+.container {
+    max-width: 600px;
+}

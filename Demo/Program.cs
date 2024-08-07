@@ -1,40 +1,40 @@
 using Demo.Entities;
 using Demo.Configuration;
+using Demo.Services.Services;
 using Demo.Repositories;
-using Demo.Services;
-using Demo.Repositories.Repositories;
 using Demo.Entities.Entities;
-using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 using Microsoft.OpenApi.Models;
-using Swashbuckle.AspNetCore.SwaggerGen;
-using Demo;
-using Microsoft.Extensions.Configuration;
-using MongoDB.Driver.Core.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Demo.ActionFilter;
 using Serilog;
 using Microsoft.AspNetCore.Mvc;
-using AutoMapper;
 using Boxed.Mapping;
 using Demo.Entities.ViewModels;
 using Demo.Entities.Mapper;
 using Demo.Middleware;
-using Microsoft.AspNetCore.Builder;
+using Hangfire;
+using Hangfire.Mongo;
+using Hangfire.Mongo.Migration.Strategies.Backup;
+using Hangfire.Mongo.Migration.Strategies;
+using Demo;
+using CrystalQuartz.AspNetCore;
+using Quartz.Impl;
+using Quartz;
+using System.Collections.Specialized;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
     .WriteTo.File("logs/Log.txt", rollingInterval: RollingInterval.Day)
     //.WriteTo.Console()
     .CreateLogger();
-try
-{
-    var builder = WebApplication.CreateBuilder(args);
+
+var builder = WebApplication.CreateBuilder(args);
 
     builder.Host.UseSerilog();
-    builder.Services.Configure<ProductDBSettings>(
+builder.Services.Configure<ProductDBSettings>(
       builder.Configuration.GetSection("ProductDatabase"));
 
     // Retrieve connection string 
@@ -83,13 +83,54 @@ try
         };
     });
 
-    //builder.Services.AddCustomMongoDBContext(); 
     builder.Services.AddScoped<CustomsDeclarationsContext>();
-    builder.Services.AddScoped<IRepository, Repository>();
+    builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
     builder.Services.AddScoped<IUserRepository, UserRepository>();
     builder.Services.AddScoped<IProductService, ProductService>();
+    builder.Services.AddScoped<IUserService, UserService>();
+    builder.Services.AddScoped<IEncryptionService, EncryptionService>();
+    builder.Services.AddScoped<IEmailService, EmailService>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
     builder.Services.AddSingleton<ExceptionFilter>();
-    builder.Services.AddControllers(options => { 
+
+    builder.Services.AddHangfire(config =>
+    {
+        var mongoUrlBuilder = new MongoUrlBuilder(connectionString);
+        var mongoClient = new MongoClient(mongoUrlBuilder.ToMongoUrl());
+
+        var storageOptions = new MongoStorageOptions
+        {
+            MigrationOptions = new MongoMigrationOptions
+            {
+                MigrationStrategy = new MigrateMongoMigrationStrategy(),
+                BackupStrategy = new CollectionMongoBackupStrategy()
+            }
+        };
+        GlobalConfiguration.Configuration
+    .UseMongoStorage(mongoClient, databaseName, storageOptions);
+    });
+
+    builder.Services.AddSingleton<ISchedulerFactory>(sp =>
+    {
+        var properties = new NameValueCollection
+        {
+            { "org.quartz.scheduler.instanceName", "MyScheduler" },
+            { "org.quartz.scheduler.instanceId", "AUTO" },
+            { "org.quartz.jobStore.class", "org.terracotta.quartz.TerracottaJobStore" },
+            { "org.quartz.jobStore.clusterCheckinInterval", "20000" },
+            { "org.quartz.jobStore.isClustered", "true" },
+            { "org.quartz.threadPool.class", "org.quartz.simpl.SimpleThreadPool" },
+            { "org.quartz.threadPool.threadCount", "5" },
+            { "org.quartz.threadPool.threadPriority", "5" }
+        };
+        return new StdSchedulerFactory(properties);
+    });
+    builder.Services.AddSingleton<QuartzManager>();
+
+    // Add Hangfire server
+    builder.Services.AddHangfireServer();
+    builder.Services.AddScoped<Scheduler>();
+    builder.Services.AddControllers(options => {
         options.Filters.Add(typeof(ExceptionFilter));
         options.Filters.Add(typeof(LogActionFilter));
         options.CacheProfiles.Add("Default30",
@@ -105,26 +146,26 @@ try
 
     builder.Services.AddTransient<IMapper<ProductDetailsViewModel, ProductDetails>, ProductDetailMapper>();
     builder.Services.AddMemoryCache();
-    //builder.Services.AddCors(options =>
-    //{
-    //    options.AddDefaultPolicy(builder =>
-    //    {
-    //        builder.WithOrigins("http://localhost:4200/")
-    //               .AllowAnyHeader()
-    //               .AllowAnyMethod();
-    //    });
-    //});
+
     // cors to allow access to frontend
     builder.Services.AddCors(options =>
     {
         options.AddDefaultPolicy(builder =>
         {
             builder.WithOrigins("http://localhost:4200")
-                   .AllowAnyMethod()
+                   .AllowAnyMethod()    
                    .AllowAnyHeader();
         });
     });
-    builder.Services.AddSwaggerGen(option =>
+    var emailConfig = builder.Configuration
+            .GetSection("EmailConfiguration")
+            .Get<SendEmailModel>();
+
+    builder.Services.AddSingleton(emailConfig);
+
+builder.Services.AddControllersWithViews();
+
+builder.Services.AddSwaggerGen(option =>
     {
         option.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
@@ -151,25 +192,35 @@ try
             }
         });
     });
-
+    var scheduler = new StdSchedulerFactory().GetScheduler().Result;
+    scheduler.Start().Wait();
     var app = builder.Build();
+    app.UseCrystalQuartz(() => scheduler);
     app.UseCors();
-    //app.UseHttpsRedirection();
-    // Configure the HTTP request pipeline.
-    if (app.Environment.IsDevelopment())
+    app.UseRouting();
+
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
     {
         app.UseSwagger();
         app.UseSwaggerUI();
     }
-    app.UseMiddleware();
-    app.UseHttpsRedirection();
-    app.UseAuthentication();
-    app.UseAuthorization();
-    app.MapControllers();
-    app.Run();
-}
-catch (Exception ex)
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseStaticFiles();
+app.UseMiddleware();
+app.UseGlobalExceptionMiddleware();
+app.UseAuthentication();
+app.UseHangfireDashboard();
+app.UseAuthorization();
+app.UseEndpoints(endpoints => 
 {
-    Log.Fatal(ex, "Application terminated unexpectedly");
-}
+    endpoints.MapControllers();
+});
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Account}/{action=ResetPassword}/{id?}");
 
+app.Run();
+
+public partial class Program { }

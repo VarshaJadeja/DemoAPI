@@ -1,28 +1,25 @@
-﻿using Demo.Entities.Entities;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Demo.Entities.ViewModels;
+using FluentResults;
 
-namespace Demo.Repositories.Repositories
+namespace Demo.Repositories;
+
+public interface IRepository<T> where T : class
 {
-    public interface IRepository
-    {
-        public Task<List<ProductDetails>> GetAllAsync();
+    public Task<PaginatedItemsViewModel<T>> GetPaginatedProductsAsync(int pageIndex, int pageSize);
 
-        public Task<ProductDetails> GetByIdAsync(string productId);
+    public Task<List<T>> GetAllAsync();
 
-        public Task InsertAsync(ProductDetails model);
+    public Task<Result<T>> GetByIdAsync(string productId);
 
-        public Task UpdateAsync(string productId, ProductDetails model);
+    public Task InsertAsync(T model);
 
-        public Task InsertManyAsync(List<ProductCategories> models);
+    public Task UpdateAsync(string productId, T model);
 
-        public Task DeleteOneAsync(string productId);
+    public Task InsertManyAsync(List<T> models);
 
-        public Task<List<ProductDetails>> GetSearchAsync(string name);
+    public Task DeleteOneAsync(string productId);
 
-        public Task<List<Categories>> GetCategory();
-    }
+    //public Task<List<T>> GetSearchAsync(string name);
+
+    public Task<List<T>> GetCategory();
 }

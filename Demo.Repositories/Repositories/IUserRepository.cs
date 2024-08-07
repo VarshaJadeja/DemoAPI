@@ -1,19 +1,15 @@
 ﻿using Demo.Entities.Entities;
 using Demo.Entities.ViewModels;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using FluentResults;
+namespace Demo.Repositories;
 
-namespace Demo.Repositories.Repositories
+public interface IUserRepository
 {
-    public interface IUserRepository
-    {
-        bool IsUniqueUser(string username);
-
-        Task<LoginReaponce> Login(LoginRequest oginRequest);
-
-        Task<User> Register(RegistrationRequest registrationRequest);
-    }
+    public Task<User> GetUserByEmailAsync(string email);
+    public Task<bool> UpdatePasswordAsync(string email, string newPassword);
+    public Task<bool> UpdateFieldAsync(string email, string fieldName, object newValue);
+    public Task<bool> UpdateFieldsAsync(string email, Dictionary<string, object> fieldUpdates);
+    bool IsUniqueUser(string username);
+    Task<Result<LoginResponse>> Login(LoginRequest oginRequest);
+    Task<Result<User>> Register(RegistrationRequest registrationRequest);
 }

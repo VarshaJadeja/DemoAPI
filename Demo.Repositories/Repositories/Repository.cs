@@ -1,93 +1,81 @@
 ﻿using Demo.Entities;
-
-using Demo;
 using MongoDB.Driver;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Demo.Entities.Entities;
-using System.Reflection;
-using static MongoDB.Driver.WriteConcern;
-using SharpCompress.Common;
-using MongoDB.Bson;
-using System.Xml.Linq;
-using System.Linq.Expressions;
+using FluentResults;
+using Demo.Entities.ViewModels;
 
-namespace Demo.Repositories.Repositories
+namespace Demo.Repositories;
+
+public class Repository<T> : IRepository<T> where T : class
 {
-    public class Repository : IRepository
+    private readonly IMongoCollection<T> collection;
+
+
+    public Repository(CustomsDeclarationsContext context, string collectionName = null)
     {
-        private readonly IMongoCollection<ProductDetails> collection;
-        private readonly IMongoCollection<ProductCategories> productCategories;
-        private readonly IMongoCollection<Categories> categories;
-
-
-        public Repository(CustomsDeclarationsContext context, string collectionName = null, string collectionName2 = null, string collectionName3 = null)
+        if (string.IsNullOrEmpty(collectionName))
         {
-            if (string.IsNullOrEmpty(collectionName))
-            {
-                collectionName = typeof(ProductDetails).Name;
-            }
-            if (string.IsNullOrEmpty(collectionName2))
-            {
-                collectionName2 = typeof(ProductCategories).Name;
-            }
-            if(string.IsNullOrEmpty(collectionName3))
-            {
-                collectionName3 = typeof(Categories).Name;
-            }
-            collection = context.GetCollection<ProductDetails>(collectionName);
-            productCategories = context.GetCollection<ProductCategories>(collectionName2);
-            categories = context.GetCollection<Categories>(collectionName3);
+            collectionName = typeof(T).Name;
         }
+        collection = context.GetCollection<T>(collectionName);
+    }
 
-        public async Task<List<ProductDetails>> GetAllAsync()
-        {
-             return await collection.Find(_ => true).ToListAsync();
-
-        }
-      
-        public async Task<List<ProductDetails>> GetSearchAsync(string name)
-        {
-            var filter = Builders<ProductDetails>.Filter.Regex(x => x.ProductName, new BsonRegularExpression($".*{name}.*", "i"));
-
-            return await collection.Find(filter).ToListAsync();
-        }
-        public async Task<ProductDetails> GetByIdAsync(string productId)
-        {
-            var filter = Builders<ProductDetails>.Filter.Eq("Id", productId);
-            return await collection.Find(filter).FirstOrDefaultAsync();
-        }
-
-        public async Task InsertAsync(ProductDetails model)
-        {
-            await collection.InsertOneAsync(model);
-        }
-
-        public async Task InsertManyAsync(List<ProductCategories> models)
-        {
-            await productCategories.InsertManyAsync(models);
-        }
-
-        public async Task UpdateAsync(string productId, ProductDetails model)
-        {
-            var filter = Builders<ProductDetails>.Filter.Eq("Id", productId);
-            await collection.ReplaceOneAsync(filter, model);
-        }
-     
-        public async Task DeleteOneAsync(string productId)
-        {
-            var filter = Builders<ProductDetails>.Filter.Eq("Id", productId);
-            await collection.DeleteOneAsync(filter);
-        }
-
-        public async Task<List<Categories>> GetCategory()
-        {
-            return await categories.Find(_ => true).ToListAsync();
-
-        }
+    public async Task<List<T>> GetAllAsync()
+    {
+         return await collection.Find(_ => true).ToListAsync();
 
     }
+    public async Task<PaginatedItemsViewModel<T>> GetPaginatedProductsAsync(int pageIndex, int pageSize)
+    {
+        var totalItems = await collection.CountDocumentsAsync( _=> true);
+
+        var products = await collection
+            .Find(_ => true)
+            .Skip(pageIndex * pageSize)
+            .Limit(pageSize)
+            .ToListAsync();
+
+        return new PaginatedItemsViewModel<T>(
+            status: 200,
+            message: "Success",
+            data: products,
+            pageIndex: pageIndex,
+            pageSize: pageSize,
+            count: totalItems
+        );
+    }
+ 
+    public async Task<Result<T>> GetByIdAsync(string productId)
+    {
+        var filter = Builders<T>.Filter.Eq("Id", productId);
+        return await collection.Find(filter).FirstOrDefaultAsync();
+    }
+
+    public async Task InsertAsync(T model)
+    {
+        await collection.InsertOneAsync(model);
+    }
+
+    public async Task InsertManyAsync(List<T> models)
+    {
+        await collection.InsertManyAsync(models);
+    }
+
+    public async Task UpdateAsync(string productId, T model)
+    {
+        var filter = Builders<T>.Filter.Eq("Id", productId);
+        await collection.ReplaceOneAsync(filter, model);
+    }
+ 
+    public async Task DeleteOneAsync(string productId)
+    {
+        var filter = Builders<T>.Filter.Eq("Id", productId);
+        await collection.DeleteOneAsync(filter);
+    }
+
+    public async Task<List<T>> GetCategory()
+    {
+        return await collection.Find(_ => true).ToListAsync();
+
+    }
+
 }

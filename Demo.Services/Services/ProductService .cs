@@ -1,33 +1,45 @@
 ﻿using Demo.Entities.Entities;
-using MongoDB.Driver;
-//using Microsoft.AspNetCore.Mvc;
-using Demo.Configuration;
-using Demo.Entities;
-using Microsoft.Extensions.Options;
-
-using System.Collections;
-using Demo.Repositories.Repositories;
-using MongoDB.Bson;
+using Demo.Repositories;
 using Demo.Entities.ViewModels;
 using Boxed.Mapping;
 using AutoMapper;
+using FluentResults;
+using Demo.Repositories.Constants;
+using MimeKit;
+using System.Security.Cryptography;
+using System.Net.Mail;
+using System.Net;
 
 
-namespace Demo.Repositories
+namespace Demo.Services.Services
 {
     public class ProductService : IProductService
     {
-        private readonly IRepository Repository;
+        private readonly IRepository<ProductDetails> Repository;
+        private readonly IRepository<ProductTable> ProductRepository;
+        private readonly IRepository<Categories> CategoryRepository;
+        private readonly IRepository<ProductCategories> ProductCategoryRepository;
+
         private readonly IMapper _mapper;
         private readonly IUserRepository UserRepository;
         private readonly IMapper<ProductDetailsViewModel, ProductDetails> ProductDetailMapper;
+        private readonly SendEmailModel _emailConfig;
 
-        public ProductService(IRepository Repository, IUserRepository userRepository, IMapper<ProductDetailsViewModel, ProductDetails> ProductDetailMapper, IMapper mapper)
+        public ProductService(IRepository<ProductDetails> Repository, IRepository<Categories> categoryRepository, IRepository<ProductCategories> productCategoryRepository, IUserRepository userRepository, IMapper<ProductDetailsViewModel, ProductDetails> ProductDetailMapper, IMapper mapper, SendEmailModel emailConfig, IRepository<ProductTable> ProductRepository)
         {
             this.Repository = Repository;
-            UserRepository = userRepository;
+            this.CategoryRepository = categoryRepository;
+            this.ProductCategoryRepository = productCategoryRepository;
+            this.ProductRepository = ProductRepository;
+            this.UserRepository = userRepository;
             this.ProductDetailMapper = ProductDetailMapper;
             _mapper = mapper;
+            _emailConfig = emailConfig;
+        }
+        public async Task<PaginatedItemsViewModel<ProductTable>> GetPaginatedProductsAsync(int pageIndex, int pageSize)
+        {
+            var product = await ProductRepository.GetPaginatedProductsAsync(pageIndex, pageSize);
+            return product;
         }
         public async Task<List<ProductDetails>> ProductListAsync()
         {
@@ -35,11 +47,16 @@ namespace Demo.Repositories
         }
         public async Task<List<Categories>> CategoryList()
         {
-            return await Repository.GetCategory();
+            return await CategoryRepository.GetCategory();
         }
-        public async Task<ProductDetails> GetProductDetailByIdAsync(string productId)
+        public async Task<Result<ProductDetails>> GetProductDetailByIdAsync(string productId)
         {
-            return await Repository.GetByIdAsync(productId);
+            var productDetail = await Repository.GetByIdAsync(productId);
+            if(productDetail == null)
+            {
+                return Result.Fail<ProductDetails>(ErrorMessages.ProductNotFound);
+            }
+            return productDetail;
         }
         public async Task AddProductAsync(ProductDetailsViewModel productDetailsViewModel)
         {
@@ -61,32 +78,16 @@ namespace Demo.Repositories
             await Repository.DeleteOneAsync(productId);
         }
 
-        public async Task<List<ProductDetails>> GetSearchAsync(string name)
-        {
-            return  await Repository.GetSearchAsync(name);
-          
-        }
-
-        public async Task<LoginReaponce> Login(LoginRequest loginRequest)
-        {
-            var response = await UserRepository.Login(loginRequest);
-            return response;
-        }
-        public bool IsUniqueUser(string username)
-        {
-            bool response =  UserRepository.IsUniqueUser(username);
-            return response;
-        }
-
-        public async Task<User> Register(RegistrationRequest user)
-        {
-            var response = await UserRepository.Register(user);
-            return response;
-        }
+        //public async Task<List<ProductDetails>> GetSearchAsync(string name)
+        //{
+        //    return  await Repository.GetSearchAsync(name);
+        //}
 
         public async Task InsertProductCategoriesAsync(List<ProductCategories> list)
         {
-            await Repository.InsertManyAsync(list);
+            await ProductCategoryRepository.InsertManyAsync(list);
         }
+
+       
     }
 }
