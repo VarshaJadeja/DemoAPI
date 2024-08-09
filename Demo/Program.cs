@@ -24,96 +24,105 @@ using CrystalQuartz.AspNetCore;
 using Quartz.Impl;
 using Quartz;
 using System.Collections.Specialized;
-
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Information()
-    .WriteTo.File("logs/Log.txt", rollingInterval: RollingInterval.Day)
-    //.WriteTo.Console()
-    .CreateLogger();
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
 
-    builder.Host.UseSerilog();
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    .MinimumLevel.Override("System", LogEventLevel.Information)
+    .Enrich.FromLogContext()
+    .CreateLogger();
+builder.Host.UseSerilog((hostingContext, loggerConfiguration) =>
+    loggerConfiguration.ReadFrom.Configuration(hostingContext.Configuration));
+
+//builder.Host.UseSerilog();
 builder.Services.Configure<ProductDBSettings>(
       builder.Configuration.GetSection("ProductDatabase"));
 
-    // Retrieve connection string 
-    var connectionString = builder.Configuration.GetSection("ProductDatabase")
-        .Get<ProductDBSettings>()?.ConnectionString;
-    if (string.IsNullOrEmpty(connectionString))
-    {
-        throw new ArgumentNullException(nameof(connectionString), "Connection string is not configured.");
-    }
-    // Retrieve database name 
-    var databaseName = builder.Configuration.GetSection("ProductDatabase")
-        .Get<ProductDBSettings>()?.DatabaseName;
-    if (string.IsNullOrEmpty(databaseName))
-    {
-        throw new ArgumentNullException(nameof(databaseName), "Database name is not configured.");
-    }
+// Retrieve connection string 
+var connectionString = builder.Configuration.GetSection("ProductDatabase")
+    .Get<ProductDBSettings>()?.ConnectionString;
+if (string.IsNullOrEmpty(connectionString))
+{
+    throw new ArgumentNullException(nameof(connectionString), "Connection string is not configured.");
+}
+// Retrieve database name 
+var databaseName = builder.Configuration.GetSection("ProductDatabase")
+    .Get<ProductDBSettings>()?.DatabaseName;
+if (string.IsNullOrEmpty(databaseName))
+{
+    throw new ArgumentNullException(nameof(databaseName), "Database name is not configured.");
+}
 
-    // Register MongoDB services
-    builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
-    {
-        var mongoClientSettings = MongoClientSettings.FromConnectionString(connectionString);
-        return new MongoClient(mongoClientSettings);
-    });
+// Register MongoDB services
+builder.Services.AddSingleton<IMongoClient>(serviceProvider =>
+{
+    var mongoClientSettings = MongoClientSettings.FromConnectionString(connectionString);
+    return new MongoClient(mongoClientSettings);
+});
 
-    builder.Services.AddScoped(sp =>
+builder.Services.AddScoped(sp =>
+{
+    var client = sp.GetRequiredService<IMongoClient>();
+    return client.GetDatabase(databaseName);
+});
+var key = builder.Configuration.GetValue<string>("ApiSetting:Secret");
+
+//Jwt Token
+builder.Services.AddAuthentication(x =>
+{
+    x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+}).AddJwtBearer(x =>
+{
+    x.RequireHttpsMetadata = false;
+    x.SaveToken = true;
+    x.TokenValidationParameters = new TokenValidationParameters
     {
-        var client = sp.GetRequiredService<IMongoClient>();
-        return client.GetDatabase(databaseName);
-    });
-    var key = builder.Configuration.GetValue<string>("ApiSetting:Secret");
-    builder.Services.AddAuthentication(x =>
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(key)),
+        ValidateIssuer = false,
+        ValidateAudience = false,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+
+    };
+});
+
+builder.Services.AddScoped<CustomsDeclarationsContext>();
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IProductService, ProductService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IEncryptionService, EncryptionService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton<ExceptionFilter>();
+
+builder.Services.AddHangfire(config =>
+{
+    var mongoUrlBuilder = new MongoUrlBuilder(connectionString);
+    var mongoClient = new MongoClient(mongoUrlBuilder.ToMongoUrl());
+
+    var storageOptions = new MongoStorageOptions
     {
-        x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    }).AddJwtBearer(x =>
-    {
-        x.RequireHttpsMetadata = false;
-        x.SaveToken = true;
-        x.TokenValidationParameters = new TokenValidationParameters
+        MigrationOptions = new MongoMigrationOptions
         {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(key)),
-            ValidateIssuer = false,
-            ValidateAudience = false,
+            MigrationStrategy = new MigrateMongoMigrationStrategy(),
+            BackupStrategy = new CollectionMongoBackupStrategy()
+        }
+    };
+    GlobalConfiguration.Configuration
+.UseMongoStorage(mongoClient, databaseName, storageOptions);
+});
 
-        };
-    });
-
-    builder.Services.AddScoped<CustomsDeclarationsContext>();
-    builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-    builder.Services.AddScoped<IUserRepository, UserRepository>();
-    builder.Services.AddScoped<IProductService, ProductService>();
-    builder.Services.AddScoped<IUserService, UserService>();
-    builder.Services.AddScoped<IEncryptionService, EncryptionService>();
-    builder.Services.AddScoped<IEmailService, EmailService>();
-    builder.Services.AddScoped<IAuthService, AuthService>();
-    builder.Services.AddSingleton<ExceptionFilter>();
-
-    builder.Services.AddHangfire(config =>
+builder.Services.AddSingleton<ISchedulerFactory>(sp =>
+{
+    var properties = new NameValueCollection
     {
-        var mongoUrlBuilder = new MongoUrlBuilder(connectionString);
-        var mongoClient = new MongoClient(mongoUrlBuilder.ToMongoUrl());
-
-        var storageOptions = new MongoStorageOptions
-        {
-            MigrationOptions = new MongoMigrationOptions
-            {
-                MigrationStrategy = new MigrateMongoMigrationStrategy(),
-                BackupStrategy = new CollectionMongoBackupStrategy()
-            }
-        };
-        GlobalConfiguration.Configuration
-    .UseMongoStorage(mongoClient, databaseName, storageOptions);
-    });
-
-    builder.Services.AddSingleton<ISchedulerFactory>(sp =>
-    {
-        var properties = new NameValueCollection
-        {
             { "org.quartz.scheduler.instanceName", "MyScheduler" },
             { "org.quartz.scheduler.instanceId", "AUTO" },
             { "org.quartz.jobStore.class", "org.terracotta.quartz.TerracottaJobStore" },
@@ -122,46 +131,47 @@ builder.Services.Configure<ProductDBSettings>(
             { "org.quartz.threadPool.class", "org.quartz.simpl.SimpleThreadPool" },
             { "org.quartz.threadPool.threadCount", "5" },
             { "org.quartz.threadPool.threadPriority", "5" }
-        };
-        return new StdSchedulerFactory(properties);
-    });
-    builder.Services.AddSingleton<QuartzManager>();
+    };
+    return new StdSchedulerFactory(properties);
+});
+builder.Services.AddSingleton<QuartzManager>();
 
-    // Add Hangfire server
-    builder.Services.AddHangfireServer();
-    builder.Services.AddScoped<Scheduler>();
-    builder.Services.AddControllers(options => {
-        options.Filters.Add(typeof(ExceptionFilter));
-        options.Filters.Add(typeof(LogActionFilter));
-        options.CacheProfiles.Add("Default30",
-            new CacheProfile()
-            {
-                Duration = 30
-            });
-    });
-
-    //AutoMapping
-    //builder.Services.AddAutoMapper(typeof(Program));
-    builder.Services.AddAutoMapper(typeof(AutoMapping));
-
-    builder.Services.AddTransient<IMapper<ProductDetailsViewModel, ProductDetails>, ProductDetailMapper>();
-    builder.Services.AddMemoryCache();
-
-    // cors to allow access to frontend
-    builder.Services.AddCors(options =>
-    {
-        options.AddDefaultPolicy(builder =>
+// Add Hangfire server
+builder.Services.AddHangfireServer();
+builder.Services.AddScoped<Scheduler>();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add(typeof(ExceptionFilter));
+    options.Filters.Add(typeof(LogActionFilter));
+    options.CacheProfiles.Add("Default30",
+        new CacheProfile()
         {
-            builder.WithOrigins("http://localhost:4200")
-                   .AllowAnyMethod()    
-                   .AllowAnyHeader();
+            Duration = 30
         });
-    });
-    var emailConfig = builder.Configuration
-            .GetSection("EmailConfiguration")
-            .Get<SendEmailModel>();
+});
 
-    builder.Services.AddSingleton(emailConfig);
+//AutoMapping
+//builder.Services.AddAutoMapper(typeof(Program));
+builder.Services.AddAutoMapper(typeof(AutoMapping));
+
+builder.Services.AddTransient<IMapper<ProductDetailsViewModel, ProductDetails>, ProductDetailMapper>();
+builder.Services.AddMemoryCache();
+
+// cors to allow access to frontend
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.WithOrigins("http://localhost:4200")
+               .AllowAnyMethod()
+               .AllowAnyHeader();
+    });
+});
+var emailConfig = builder.Configuration
+        .GetSection("EmailConfiguration")
+        .Get<SendEmailModel>();
+
+builder.Services.AddSingleton(emailConfig);
 
 builder.Services.AddControllersWithViews();
 
@@ -192,19 +202,19 @@ builder.Services.AddSwaggerGen(option =>
             }
         });
     });
-    var scheduler = new StdSchedulerFactory().GetScheduler().Result;
-    scheduler.Start().Wait();
-    var app = builder.Build();
-    app.UseCrystalQuartz(() => scheduler);
-    app.UseCors();
-    app.UseRouting();
+var scheduler = new StdSchedulerFactory().GetScheduler().Result;
+scheduler.Start().Wait();
+var app = builder.Build();
+app.UseCrystalQuartz(() => scheduler);
+app.UseCors();
+app.UseRouting();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
-    {
-        app.UseSwagger();
-        app.UseSwaggerUI();
-    }
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseStaticFiles();
@@ -213,7 +223,7 @@ app.UseGlobalExceptionMiddleware();
 app.UseAuthentication();
 app.UseHangfireDashboard();
 app.UseAuthorization();
-app.UseEndpoints(endpoints => 
+app.UseEndpoints(endpoints =>
 {
     endpoints.MapControllers();
 });

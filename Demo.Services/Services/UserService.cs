@@ -1,23 +1,49 @@
 ﻿using Demo.Entities.Entities;
 using Demo.Entities.ViewModels;
 using Demo.Repositories;
+using Demo.Repositories.Errors;
 using FluentResults;
+using System.Security.Claims;
 
 namespace Demo.Services.Services;
 
 public class UserService : IUserService
 {
     private readonly IUserRepository UserRepository;
+    private readonly ITokenService TokenService;
 
-    public UserService(IUserRepository UserRepository) 
+    public UserService(IUserRepository UserRepository, ITokenService TokenService) 
     {
         this.UserRepository = UserRepository;
+        this.TokenService = TokenService;
     }
 
     public async Task<Result<LoginResponse>> Login(LoginRequest loginRequest)
     {
-        var response = await UserRepository.Login(loginRequest);
-        return response;
+        User user = await UserRepository.GetUser(loginRequest);
+        if (user == null)
+        {
+            return Result.Fail(FluentError.InvalidCredentials(ErrorType.InvalidCredentials, "Invalid Credentials"));
+        }
+        var refreshToken = Guid.NewGuid().ToString();
+        var refreshTokenExpiry = DateTime.UtcNow.AddMinutes(3);
+        var token = TokenService.GenerateToken(user);
+        var updates = new Dictionary<string, object>
+        {
+            { "AccessToken", token },
+            { "RefreshToken", refreshToken },
+            { "RefreshTokenExpiry", refreshTokenExpiry }
+        };
+        await UserRepository.UpdateFieldsAsync(user.Email, updates);
+        var updatedUser = await UserRepository.GetUser(loginRequest);
+        LoginResponse loginResponse = new LoginResponse()
+        {
+            Token = token,
+            RefreshToken = refreshToken,
+            User = updatedUser,
+        };
+
+        return loginResponse;
     }
 
     public async Task<Result<User>> Register(RegistrationRequest user)

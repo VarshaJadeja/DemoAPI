@@ -3,6 +3,7 @@ using Demo.ExtensionMethod;
 using Demo.Services.Services;
 using Microsoft.AspNetCore.Mvc;
 using Demo.Repositories.Errors;
+using NuGet.Protocol.Plugins;
 
 namespace Demo.Controllers
 {
@@ -13,16 +14,18 @@ namespace Demo.Controllers
         private readonly IProductService productService;
         private readonly IUserService userService;
         private readonly IEncryptionService encryptionService;
+        private readonly ITokenService tokenService;
         private readonly IEmailService emailService;
         private readonly IAuthService authService;
 
-        public UserController(IProductService productService, IEmailService emailService, IUserService userService, IEncryptionService encryptionService, IAuthService authService)
+        public UserController(IProductService productService, IEmailService emailService, IUserService userService, IEncryptionService encryptionService,ITokenService tokenService, IAuthService authService)
         {
             this.productService = productService;
             this.emailService = emailService;
             this.userService = userService;
             this.encryptionService = encryptionService;
             this.authService = authService;
+            this.tokenService = tokenService;
         }
 
 
@@ -33,8 +36,17 @@ namespace Demo.Controllers
             return loginResponse.Match(
             loginResponse => Results.Ok(loginResponse),
             errors => Errors.CreateResultFromErrors(errors.ToList()));
-        }
+        } 
 
+        [HttpPost("refreshToken")]
+        public async Task<IResult> RefreshToken(string refreshToken)
+        {
+            var newAccessToken = await tokenService.RefreshToken(refreshToken);
+            return newAccessToken.Match(
+            newAccessToken => Results.Ok(newAccessToken),
+            error => Results.BadRequest(error));
+        }
+      
         [HttpPost("register")]  
         public async Task<IResult> Register([FromBody]  RegistrationRequest model)
         {

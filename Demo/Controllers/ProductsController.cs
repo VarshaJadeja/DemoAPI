@@ -6,7 +6,6 @@ using Microsoft.Extensions.Caching.Memory;
 using ExcelDataReader;
 using Demo.ExtensionMethod;
 using Microsoft.AspNetCore.Authorization;
-using Demo.ActionFilter;
 
 
 namespace Demo.Controllers;
@@ -20,14 +19,16 @@ namespace Demo.Controllers;
 public class ProductsController : ControllerBase
 {
     private readonly IProductService productService;
+    private readonly IUserService userService;
     private readonly ILogger<ProductsController> _logger;
     private readonly IMemoryCache _memoryCache;   
     public string cacheKey = "product";
-    public ProductsController(IProductService productService, ILogger<ProductsController> logger, IMemoryCache memoryCache)
+    public ProductsController(IProductService productService, ILogger<ProductsController> logger, IMemoryCache memoryCache, IUserService userService)
     {
        this.productService = productService;
        _logger = logger;
         _memoryCache = memoryCache;
+        this.userService = userService;
     }
     [HttpGet("productWithPagination")]
     public async Task<IActionResult> GetPaginatedProducts(int pageIndex = 0, int pageSize = 10)
@@ -60,6 +61,7 @@ public class ProductsController : ControllerBase
     public async Task<List<ProductDetails>> Get()
     {
         _logger.LogInformation("Seri Log is Working");
+
         List<ProductDetails> list;
         list = await productService.ProductListAsync();
         return list;    

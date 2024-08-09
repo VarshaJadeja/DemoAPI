@@ -38,7 +38,7 @@ public class UserRepository : IUserRepository
     {
         var filter = Builders<User>.Filter.Eq(u => u.UserName, email);
         var update = Builders<User>.Update.Set(u => u.Password, newPassword);
-    
+
         var result = await collection.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
     }
@@ -63,44 +63,24 @@ public class UserRepository : IUserRepository
         var result = await collection.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
     }
-   
 
-    public async Task<Result<LoginResponse>> Login(LoginRequest loginRequest)
+    public async Task<User> GetUser(LoginRequest loginRequest)
     {
         var filter = Builders<User>.Filter.And(
-                        Builders<User>.Filter.Eq("UserName", loginRequest.UserName),
-                        Builders<User>.Filter.Eq("Password", loginRequest.Password)
-                    );
-      
+                      Builders<User>.Filter.Eq("UserName", loginRequest.UserName),
+                      Builders<User>.Filter.Eq("Password", loginRequest.Password)
+                  );
+
         var user = await collection.Find(filter).FirstOrDefaultAsync();
-        if (user == null)
-        {
-            return Result.Fail<LoginResponse>(FluentError.InvalidCredentials(ErrorType.InvalidCredentials, "Invalid Credentials"));
-        }
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.UTF8.GetBytes(secretKey);
-
-        var tokenDescriptor = new SecurityTokenDescriptor
-        {
-            Subject = new ClaimsIdentity(new Claim[]
-            {
-                new Claim(ClaimTypes.Name, user.Id.ToString()),
-            }),
-            Expires = DateTime.UtcNow.AddDays(1),
-            SigningCredentials = new(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-        };
-        var refreshToken = Guid.NewGuid().ToString();
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        LoginResponse loginReaponce = new LoginResponse()
-        {
-            Token = tokenHandler.WriteToken(token),
-            RefreshToken = refreshToken,
-            User = user,
-        };
-        return loginReaponce;
+        return user;
     }
-   
+    
+    public async Task<User> GetUserByRefreshTokenAsync(string refreshToken)
+    {
+        var filter = Builders<User>.Filter.Eq("RefreshToken", refreshToken);
+        return await collection.Find(filter).FirstOrDefaultAsync();
+    }
+
     public bool IsUniqueUser(string username)
     {
         var filter = Builders<User>.Filter.Eq("UserName", username);
