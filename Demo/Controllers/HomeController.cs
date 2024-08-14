@@ -1,4 +1,5 @@
 ﻿using Demo.Entities.ViewModels;
+using Demo.Repositories.Constants;
 using Demo.Services.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,14 +21,14 @@ public class HomeController : Controller
     {
         if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(expiration) || string.IsNullOrEmpty(email))
         {
-            return BadRequest("Token, expiration, and email parameters are required.");
+            return BadRequest(ErrorMessages.ResetPasswordValidationError);
         }
         var decodedExpiration = encryptionService.Decode(expiration);
         var decodedToken = encryptionService.Decode(token);
         var decodedEmail = encryptionService.Decode(email);
         if (decodedExpiration == null || decodedToken == null || decodedEmail == null)
         {
-            return BadRequest("Input credentials are not valid Base64 encoded string.");
+            return BadRequest(ErrorMessages.InvalidCredentials);
         }
         var model = new ResetPasswordViewModel
         {
@@ -39,7 +40,7 @@ public class HomeController : Controller
         if (user == null)
         {
             model.IsLinkValid = false;
-            return BadRequest("User Not Found");
+            return BadRequest(ErrorMessages.UserNotFound);
         }
         if (DateTime.TryParseExact(decodedExpiration, "yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out DateTime expirationTime))
         {
@@ -79,9 +80,9 @@ public class HomeController : Controller
     [HttpPost("UpdatePassword")]
     public async Task<IActionResult> UpdatePassword(ResetPasswordViewModel resetPasswordViewModel)
     {
-        var decodedEmail = encryptionService.Decode(resetPasswordViewModel.Email);
-        var decodedToken = encryptionService.Decode(resetPasswordViewModel.Token);
-        var decodedExpiration = encryptionService.Decode(resetPasswordViewModel.Expiration);
+        var decodedEmail = encryptionService.Decode(resetPasswordViewModel.Email!);
+        var decodedToken = encryptionService.Decode(resetPasswordViewModel.Token!);
+        var decodedExpiration = encryptionService.Decode(resetPasswordViewModel.Expiration!);
         var user = await userService.GetUserByEmailAsync(decodedEmail);
 
         if (user != null)
@@ -91,7 +92,7 @@ public class HomeController : Controller
                 var updates = new Dictionary<string, object>
                  {
                      { "IsPasswordUpdated", "true" },
-                     { "Token", resetPasswordViewModel.Token },
+                     { "Token", resetPasswordViewModel.Token ! },
                      { "Password", resetPasswordViewModel.NewPassword }
                  };
                 resetPasswordViewModel.IsLinkValid = false;

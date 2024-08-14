@@ -1,9 +1,9 @@
 ﻿using Demo.Entities.Entities;
 using Demo.Entities.ViewModels;
 using Demo.Repositories;
+using Demo.Repositories.Constants;
 using Demo.Repositories.Errors;
 using FluentResults;
-using System.Security.Claims;
 
 namespace Demo.Services.Services;
 
@@ -23,7 +23,7 @@ public class UserService : IUserService
         User user = await UserRepository.GetUser(loginRequest);
         if (user == null)
         {
-            return Result.Fail(FluentError.InvalidCredentials(ErrorType.InvalidCredentials, "Invalid Credentials"));
+            return Result.Fail(FluentError.InvalidCredentials(ErrorType.InvalidCredentials, ErrorMessages.InvalidCredentials));
         }
         var refreshToken = Guid.NewGuid().ToString();
         var refreshTokenExpiry = DateTime.UtcNow.AddMinutes(3);
@@ -57,10 +57,6 @@ public class UserService : IUserService
         return user;
     }
 
-    public async Task UpdatePasswordAsync(string email, string newPassword)
-    {
-        await UserRepository.UpdatePasswordAsync(email, newPassword);
-    }
     public async Task UpdateFieldAsync(string email, Dictionary<string, object> fieldUpdates)
     {
         await UserRepository.UpdateFieldsAsync(email, fieldUpdates);

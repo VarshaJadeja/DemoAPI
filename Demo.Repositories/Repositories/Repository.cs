@@ -2,6 +2,7 @@
 using MongoDB.Driver;
 using FluentResults;
 using Demo.Entities.ViewModels;
+using Demo.Repositories.Constants;
 
 namespace Demo.Repositories;
 
@@ -36,7 +37,7 @@ public class Repository<T> : IRepository<T> where T : class
 
         return new PaginatedItemsViewModel<T>(
             status: 200,
-            message: "Success",
+            message: ErrorMessages.SuccessMessage,
             data: products,
             pageIndex: pageIndex,
             pageSize: pageSize,

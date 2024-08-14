@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Demo.Repositories.Constants;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Demo.Controllers;
 
@@ -20,47 +21,47 @@ public class SchedulerController : Controller
     public IActionResult SchedulePrintTime(string cron)
     {
         scheduler.WriteTime(cron);
-        return Ok("Print current time job scheduled successfully.");
+        return Ok(SchedulerMessages.JobScheduled);
     }
 
     [HttpPost("hangfire-pause-job")]
     public IActionResult PauseJob(string jobId)
     {
         scheduler.PauseJob(jobId);
-        return Ok("Job paused successfully.");
+        return Ok(SchedulerMessages.JobPaused);
     }
 
     [HttpPost("hangfire-resume-job")]
     public IActionResult ResumeJob(string jobId)
     {
         scheduler.ResumeJob(jobId);
-        return Ok("Job resumed successfully.");
+        return Ok(SchedulerMessages.JobResumed);
     }
 
     [HttpPost("hangfire-stop-job")]
     public IActionResult StopJob(string JobId)
     {
         scheduler.StopJob(JobId);
-        return Ok("Job stopped successfully.");
+        return Ok(SchedulerMessages.JobStopped);
     }
     [HttpPost("hangfire-pauseForDuration-job")]
     public async Task<IActionResult> PauseForDurationAsync(string JobId)
     {
         var duration = TimeSpan.FromMinutes(2);
         await scheduler.PauseJobForDuration(JobId, duration);
-        return Ok("Job Paused For Duration successfully.");
+        return Ok(SchedulerMessages.JobPausedForDuration);
     }
     [HttpPost("quartz-start")]
     public async Task<ActionResult> StartJob(string cronexpression)
     {
         await _quartzManager.StartAsync(cronexpression);
-        return Ok("Job started successfully.");
+        return Ok(SchedulerMessages.JobStarted);
     }
 
     [HttpPost("quartz-stop")]
     public async Task<ActionResult> StopJob()
     {
         await _quartzManager.StopAsync();
-        return Ok("Job stopped successfully.");
+        return Ok(SchedulerMessages.JobStopped);
     }
 }

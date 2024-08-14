@@ -52,7 +52,7 @@ public class ProductControllerTest : IClassFixture<InMemoryWebApplicationFactory
         var content = new StringContent(JsonConvert.SerializeObject(loginRequest), Encoding.UTF8, "application/json");
 
         // Act
-        var response = await _client.PostAsync("/login", content);
+        var response = await _client.PostAsync("api/User/login", content);
 
         // Assert
         response.EnsureSuccessStatusCode();

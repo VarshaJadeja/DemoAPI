@@ -106,7 +106,6 @@ public class ProductsController : ControllerBase
         {
             return NotFound();
         }
-        //productDetails.Id = productDetail.Id;
         await productService.UpdateProductAsync(productId, productDetails);
         return Ok();
     }
@@ -203,10 +202,10 @@ public class ProductsController : ControllerBase
 
                     var declarationCategoryItem = new ProductCategories()
                     {
-                        ProductId = strId,
-                        ProductName = strName,
+                        ProductId = strId!,
+                        ProductName = strName!,
                         Type = strAdditionalTypes,
-                        TotalItems = strItem,
+                        TotalItems = strItem!,
                     };
                     documentcode.Add(declarationCategoryItem);
                 }

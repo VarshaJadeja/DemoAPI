@@ -13,7 +13,6 @@ namespace Demo
         private readonly IMongoCollection<HangFireLog> _collection;
         private readonly IMongoCollection<HangFireFirstJobLog> _firstcollection;
         private readonly string _machineIdentifier;
-        private readonly ConnectionMultiplexer redis;
         private static readonly HashSet<string> PausedJobs = new HashSet<string>();
         public Scheduler(IMongoDatabase database)
         {
@@ -30,16 +29,6 @@ namespace Demo
         [CanBePaused]
         public void WriteTimeToFile(string jobName)
         {
-            //var currentTime = DateTime.Now;
-
-            //var logEntry = new HangFireLog
-            //{
-            //    JobId = jobName,
-            //    LogName = "PCTR78",
-            //    LogTime = currentTime
-            //};
-
-            //_collection.InsertOne(logEntry);
             if (IsFirstExecution(jobName))
             {
                 Console.WriteLine("Hello, Hangfire.NET!" + DateTime.Now);

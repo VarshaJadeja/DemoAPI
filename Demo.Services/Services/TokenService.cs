@@ -1,6 +1,7 @@
 ﻿using Demo.Entities.Entities;
 using Demo.Entities.ViewModels;
 using Demo.Repositories;
+using Demo.Repositories.Constants;
 using Demo.Repositories.Errors;
 using FluentResults;
 using Microsoft.Extensions.Configuration;
@@ -19,7 +20,7 @@ public class TokenService : ITokenService
     public TokenService(IUserRepository UserRepository, IConfiguration configuration)
     {
         this.UserRepository = UserRepository;
-        secretKey = configuration.GetValue<string>("ApiSetting:Secret");
+        secretKey = configuration.GetValue<string>("ApiSetting:Secret")!;
     }
  
     public string GenerateToken(User user)
@@ -39,17 +40,21 @@ public class TokenService : ITokenService
             SigningCredentials = new(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
         };
         var refreshToken = Guid.NewGuid().ToString();
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        var writeToken = tokenHandler.WriteToken(token);
-        return writeToken;
+        var createToken = tokenHandler.CreateToken(tokenDescriptor);
+        var token = tokenHandler.WriteToken(createToken);
+        return token;
     }
     public async Task<Result<RefreshResponse>> RefreshToken(string refreshToken)
     {
         // Retrieve the user associated with the refresh token from the database
         var user = await UserRepository.GetUserByRefreshTokenAsync(refreshToken);
-        if (user == null || user.RefreshToken != refreshToken || user.RefreshTokenExpiry < DateTime.UtcNow)
+        if (user == null) 
         {
-            return Result.Fail(FluentError.UnAuthorized(ErrorType.UnAuthorized, "Token Expired"));
+            return Result.Fail(FluentError.NotFound(ErrorType.UserNotFound, ErrorMessages.UserNotFound));
+        }
+        if (user.RefreshToken != refreshToken || user.RefreshTokenExpiry < DateTime.UtcNow)
+        {
+            return Result.Fail(FluentError.UnAuthorized(ErrorType.UnAuthorized, ErrorMessages.TokenExpired));
         }
         var newAccessToken = GenerateToken(user);
         var updates = new Dictionary<string, object>

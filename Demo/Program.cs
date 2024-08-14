@@ -1,4 +1,4 @@
-using Demo.Entities;
+    using Demo.Entities;
 using Demo.Configuration;
 using Demo.Services.Services;
 using Demo.Repositories;
@@ -25,7 +25,10 @@ using Quartz.Impl;
 using Quartz;
 using System.Collections.Specialized;
 using Serilog.Events;
-
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using AspNetCore.Identity.MongoDB;
+using AspNetCore.Identity.Mongo;
 var builder = WebApplication.CreateBuilder(args);
 
 Log.Logger = new LoggerConfiguration()
@@ -37,7 +40,6 @@ Log.Logger = new LoggerConfiguration()
 builder.Host.UseSerilog((hostingContext, loggerConfiguration) =>
     loggerConfiguration.ReadFrom.Configuration(hostingContext.Configuration));
 
-//builder.Host.UseSerilog();
 builder.Services.Configure<ProductDBSettings>(
       builder.Configuration.GetSection("ProductDatabase"));
 
@@ -68,6 +70,20 @@ builder.Services.AddScoped(sp =>
     var client = sp.GetRequiredService<IMongoClient>();
     return client.GetDatabase(databaseName);
 });
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    options.UseInMemoryDatabase(databaseName);
+});
+
+builder.Services.AddIdentity<NewAppUser, NewAppRole>()
+
+    .AddMongoDbStores<NewAppUser, NewAppRole, Guid>(mongo =>
+    {
+        mongo.ConnectionString = connectionString;
+    })
+    .AddDefaultTokenProviders();
+
 var key = builder.Configuration.GetValue<string>("ApiSetting:Secret");
 
 //Jwt Token
@@ -171,7 +187,7 @@ var emailConfig = builder.Configuration
         .GetSection("EmailConfiguration")
         .Get<SendEmailModel>();
 
-builder.Services.AddSingleton(emailConfig);
+builder.Services.AddSingleton(emailConfig!);
 
 builder.Services.AddControllersWithViews();
 
@@ -205,6 +221,7 @@ builder.Services.AddSwaggerGen(option =>
 var scheduler = new StdSchedulerFactory().GetScheduler().Result;
 scheduler.Start().Wait();
 var app = builder.Build();
+
 app.UseCrystalQuartz(() => scheduler);
 app.UseCors();
 app.UseRouting();

@@ -78,11 +78,6 @@ namespace Demo.Services.Services
             await Repository.DeleteOneAsync(productId);
         }
 
-        //public async Task<List<ProductDetails>> GetSearchAsync(string name)
-        //{
-        //    return  await Repository.GetSearchAsync(name);
-        //}
-
         public async Task InsertProductCategoriesAsync(List<ProductCategories> list)
         {
             await ProductCategoryRepository.InsertManyAsync(list);

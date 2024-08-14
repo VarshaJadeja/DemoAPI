@@ -1,16 +1,11 @@
 ﻿using Demo.Entities;
 using Demo.Entities.Entities;
 using Demo.Entities.ViewModels;
-using FluentResults;
-using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
-using MongoDB.Driver;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using Demo.Repositories.Constants;
-using Demo.Repositories.Errors;
+using FluentResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using MongoDB.Driver;
 
 namespace Demo.Repositories;
 
@@ -26,7 +21,7 @@ public class UserRepository : IUserRepository
         }
         collection = context.GetCollection<User>(collectionName);
 
-        secretKey = configuration.GetValue<string>("ApiSetting:Secret");
+        secretKey = configuration.GetValue<string>("ApiSetting:Secret")!;
     }
 
     public async Task<User> GetUserByEmailAsync(string email)

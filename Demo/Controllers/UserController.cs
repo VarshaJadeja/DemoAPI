@@ -1,9 +1,9 @@
 ﻿using Demo.Entities.ViewModels;
 using Demo.ExtensionMethod;
+using Demo.Repositories.Constants;
+using Demo.Repositories.Errors;
 using Demo.Services.Services;
 using Microsoft.AspNetCore.Mvc;
-using Demo.Repositories.Errors;
-using NuGet.Protocol.Plugins;
 
 namespace Demo.Controllers
 {
@@ -28,7 +28,7 @@ namespace Demo.Controllers
             this.tokenService = tokenService;
         }
 
-
+        
         [HttpPost("login")]
         public async Task<IResult> Login([FromBody] LoginRequest model)
         {
@@ -63,7 +63,7 @@ namespace Demo.Controllers
             var user = await userService.GetUserByEmailAsync(toEmail);
             if (user == null)
             {
-                return BadRequest("User Not Found");
+                return BadRequest(ErrorMessages.UserNotFound);
             }
                 var resetToken = authService.GenerateToken();
             var expiration = authService.CalculateExpirationTime();

@@ -22,7 +22,6 @@ public class QuartzManager
 
     public async Task StartAsync(string cronexpression)
     {
-        //_scheduler = await StdSchedulerFactory.GetDefaultScheduler();
         await _scheduler.Start();
         string uniqueJobKey = $"PCTR78job_{Guid.NewGuid()}";
         string uniqueTriggerKey = $"PCTR78trigger_{Guid.NewGuid()}";
@@ -56,7 +55,8 @@ public class QuartzManager
 
     public async Task StopAsync()
     {
-        await _scheduler?.Shutdown();
+        CancellationToken cancellationToken = default(CancellationToken);
+        await _scheduler.Shutdown(cancellationToken);
     }
 }
 

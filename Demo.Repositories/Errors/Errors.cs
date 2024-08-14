@@ -7,8 +7,8 @@ public class Errors
 {
     public class ErrorResponse
     {
-        public string ErrorType { get; set; }
-        public string Message { get; set; }
+        public string? ErrorType { get; set; }
+        public string? Message { get; set; }
         public int StatusCode { get; set; }
     }
 

@@ -28,7 +28,7 @@ namespace Test
             var collection2 = database.GetCollection<User>("User");
             var users = new List<User>
             {
-                new User { Id = "", Name = "123", Password = "123", Role = "admin" , UserName = "123"}
+                new User { Id = "", Password = "123", UserName = "123"}
             };
             collection2.InsertMany(users);
         }
